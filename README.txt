@@ -6,7 +6,7 @@ autoupload localfiles to net sharefolder and ftp at a fixtime
 3.配置文件所有符号为英文符号
 4.注册服务命令，以管理员运行cmd，输入sc.exe create 服务名称 binPath= 程序路径，例如sc.exe create MyWatcher binPath= D:\软件\Watcher.WorkerService\Watcher.WorkerService\bin\Release\net5.0\publish\Watcher.WorkerService.exe
 5.删除服务指令sc.exe delete 服务名称
-6.services.msc打开服务，找到你注册的服务，右键属性，打开登录选项卡，选择“此账户”，将服务运行设置为管理员账户，密码是你的登录密码
+6.win+R输入services.msc打开服务，找到你注册的服务，右键属性，打开登录选项卡，选择“此账户”，将服务运行设置为管理员账户，密码是你的登录密码
 7.配置解释
 
 {
@@ -38,8 +38,8 @@ autoupload localfiles to net sharefolder and ftp at a fixtime
         },
         {
           "文件上传地址": "ftp://127.0.0.1/ftp",         //ftp路径,不需要双倍/
-          "用户名": "whats'up",
-          "密码": "ChenSong0820",
+          "用户名": "",
+          "密码": "",
           "同名文件处理": "覆盖"
         }
       ],
