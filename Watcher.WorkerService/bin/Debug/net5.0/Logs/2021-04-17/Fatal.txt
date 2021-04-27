@@ -1,0 +1,2 @@
+2021-04-17 22:24:30.0633 | This is Fatal Message! 
+2021-04-17 22:25:05.1099 | This is Fatal Message! 
