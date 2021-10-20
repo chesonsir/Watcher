@@ -9,10 +9,10 @@
       "Watcher.WorkerService/1.0.0": {
         "dependencies": {
           "Microsoft.Extensions.Hosting": "5.0.0",
+          "Microsoft.Extensions.Hosting.WindowsServices": "5.0.1",
           "NLog": "4.7.9",
           "Newtonsoft.Json": "13.0.1",
-          "SharpCompress": "0.28.1",
-          "System.Speech": "5.0.0"
+          "SharpCompress": "0.28.1"
         },
         "runtime": {
           "Watcher.WorkerService.dll": {}
@@ -214,6 +214,19 @@
           }
         }
       },
+      "Microsoft.Extensions.Hosting.WindowsServices/5.0.1": {
+        "dependencies": {
+          "Microsoft.Extensions.Hosting": "5.0.0",
+          "Microsoft.Extensions.Logging.EventLog": "5.0.0",
+          "System.ServiceProcess.ServiceController": "5.0.0"
+        },
+        "runtime": {
+          "lib/netstandard2.1/Microsoft.Extensions.Hosting.WindowsServices.dll": {
+            "assemblyVersion": "5.0.1.0",
+            "fileVersion": "5.0.120.58002"
+          }
+        }
+      },
       "Microsoft.Extensions.Logging/5.0.0": {
         "dependencies": {
           "Microsoft.Extensions.DependencyInjection": "5.0.0",
@@ -349,7 +362,7 @@
           }
         }
       },
-      "Microsoft.NETCore.Platforms/5.0.1": {},
+      "Microsoft.NETCore.Platforms/5.0.0": {},
       "Microsoft.Win32.Registry/5.0.0": {
         "dependencies": {
           "System.Security.AccessControl": "5.0.0",
@@ -382,7 +395,7 @@
       },
       "System.Diagnostics.EventLog/5.0.0": {
         "dependencies": {
-          "Microsoft.NETCore.Platforms": "5.0.1",
+          "Microsoft.NETCore.Platforms": "5.0.0",
           "Microsoft.Win32.Registry": "5.0.0",
           "System.Security.Principal.Windows": "5.0.0"
         },
@@ -403,28 +416,27 @@
       },
       "System.Security.AccessControl/5.0.0": {
         "dependencies": {
-          "Microsoft.NETCore.Platforms": "5.0.1",
+          "Microsoft.NETCore.Platforms": "5.0.0",
           "System.Security.Principal.Windows": "5.0.0"
         }
       },
       "System.Security.Principal.Windows/5.0.0": {},
-      "System.Speech/5.0.0": {
+      "System.ServiceProcess.ServiceController/5.0.0": {
         "dependencies": {
-          "Microsoft.NETCore.Platforms": "5.0.1",
-          "Microsoft.Win32.Registry": "5.0.0"
+          "System.Diagnostics.EventLog": "5.0.0"
         },
         "runtime": {
-          "lib/netstandard2.0/System.Speech.dll": {
-            "assemblyVersion": "4.0.0.0",
-            "fileVersion": "5.0.321.7212"
+          "lib/netstandard2.0/System.ServiceProcess.ServiceController.dll": {
+            "assemblyVersion": "5.0.0.0",
+            "fileVersion": "5.0.20.51904"
           }
         },
         "runtimeTargets": {
-          "runtimes/win/lib/netcoreapp2.1/System.Speech.dll": {
+          "runtimes/win/lib/netstandard2.0/System.ServiceProcess.ServiceController.dll": {
             "rid": "win",
             "assetType": "runtime",
-            "assemblyVersion": "4.0.0.0",
-            "fileVersion": "5.0.321.7212"
+            "assemblyVersion": "5.0.0.0",
+            "fileVersion": "5.0.20.51904"
           }
         }
       }
@@ -541,6 +553,13 @@
       "path": "microsoft.extensions.hosting.abstractions/5.0.0",
       "hashPath": "microsoft.extensions.hosting.abstractions.5.0.0.nupkg.sha512"
     },
+    "Microsoft.Extensions.Hosting.WindowsServices/5.0.1": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-xtIf7KkcLMvYoxoW8pokCgIMXeYYGBbrJmuABgQaOc0sylYmSicfdq1Ua/9cRhcTRzWKLWXJRVADDR00ID+GYw==",
+      "path": "microsoft.extensions.hosting.windowsservices/5.0.1",
+      "hashPath": "microsoft.extensions.hosting.windowsservices.5.0.1.nupkg.sha512"
+    },
     "Microsoft.Extensions.Logging/5.0.0": {
       "type": "package",
       "serviceable": true,
@@ -611,12 +630,12 @@
       "path": "microsoft.extensions.primitives/5.0.0",
       "hashPath": "microsoft.extensions.primitives.5.0.0.nupkg.sha512"
     },
-    "Microsoft.NETCore.Platforms/5.0.1": {
+    "Microsoft.NETCore.Platforms/5.0.0": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-z3YFkbnl1RMj6lb+Bm/2tsZ0cJCULlB4uPOFqlj6dNSm/8feJl4UrXmG6TcZh8ipJQwkAS5I6UCs1FnGog4QZg==",
-      "path": "microsoft.netcore.platforms/5.0.1",
-      "hashPath": "microsoft.netcore.platforms.5.0.1.nupkg.sha512"
+      "sha512": "sha512-VyPlqzH2wavqquTcYpkIIAQ6WdenuKoFN0BdYBbCWsclXacSOHNQn66Gt4z5NBqEYW0FAPm5rlvki9ZiCij5xQ==",
+      "path": "microsoft.netcore.platforms/5.0.0",
+      "hashPath": "microsoft.netcore.platforms.5.0.0.nupkg.sha512"
     },
     "Microsoft.Win32.Registry/5.0.0": {
       "type": "package",
@@ -667,12 +686,12 @@
       "path": "system.security.principal.windows/5.0.0",
       "hashPath": "system.security.principal.windows.5.0.0.nupkg.sha512"
     },
-    "System.Speech/5.0.0": {
+    "System.ServiceProcess.ServiceController/5.0.0": {
       "type": "package",
       "serviceable": true,
-      "sha512": "sha512-URJOtiuS47+aK4u8uBGgky4XuiUzoiTFB7VGyaayD4iQDC/mE0aoPIB0m73lGzt0xYc/ZnMC6ltGb49t76wXJA==",
-      "path": "system.speech/5.0.0",
-      "hashPath": "system.speech.5.0.0.nupkg.sha512"
+      "sha512": "sha512-p2yX167GW1pr2DCR6cW+cBKrvhli4thckXk108faFaTPHnoudb0AYPcIPq3nmrwn7IQj9FEmjpyJlXzcOmIjjw==",
+      "path": "system.serviceprocess.servicecontroller/5.0.0",
+      "hashPath": "system.serviceprocess.servicecontroller.5.0.0.nupkg.sha512"
     }
   }
 }
