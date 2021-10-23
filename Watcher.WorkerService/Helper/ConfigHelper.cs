@@ -65,12 +65,14 @@ namespace Watcher.WorkerService.Helper
                                     Homonym = "忽略"
                                 },
                             },
+                            UpNow = false,
                             Timed = "",
                             CompressFormat = "zip",
                             IsCompressed = true,
                             IsDeleteOldFiles = true,
                             ReserveDays = 3,
-                            TimeBase="文件名"
+                            TimeBase="文件名",
+                            FileFilter = ".txt|.gae|.gdj|.gtw|.dox|.docx|.xls|.xlsx|.jhf|.jhfnew|.tle|.pdf|.ppt|.pptx|.rar|.zip|.7z|.jpg|.png|.bmp|.ico|.gif|.fig|.m|.avi|.flv|.xmind"
                         }
                     },
                     MutiCastIP = new MutiCastIPModel()
@@ -89,7 +91,9 @@ namespace Watcher.WorkerService.Helper
                 {
                     var configJson = File.ReadAllText(@$"{AppDomain.CurrentDomain.BaseDirectory}\Config.json");
                     CM = JsonConvert.DeserializeObject<ConfigModel>(configJson);
+#if TRACE
                     LogHelper.Debug(configJson);
+#endif
                 }
                 catch
                 {
@@ -194,6 +198,10 @@ namespace Watcher.WorkerService.Helper
         /// </summary>        
         [JsonProperty("文件上传路径列表")] public List<ChildrenPathModel> UpPathList { get; set; }
         /// <summary>
+        /// 有新文件立即上传
+        /// </summary>
+        [JsonProperty("立即上传")] public bool UpNow { get; set; }
+        /// <summary>
         /// 定时上传
         /// </summary>
         [JsonProperty("定时上传")] public string Timed { get; set; }
@@ -218,9 +226,29 @@ namespace Watcher.WorkerService.Helper
         /// </summary>
         [JsonProperty("压缩格式")] public string CompressFormat { get; set; }
         /// <summary>
+        /// 文件过滤
+        /// </summary>
+        [JsonProperty("文件过滤")] public string FileFilter { get; set; }
+        /// <summary>
         /// 配置是否有效
         /// </summary>
         [JsonIgnore] public bool IsVaild { get; set; } = true;
+        /// <summary>
+        /// 标识是否正在上传
+        /// </summary>
+        [JsonIgnore] public object _lock = new();
+        private bool inUpload = false;
+        [JsonIgnore] public bool InUpload
+        {
+            get
+            {
+                lock (_lock) return inUpload;
+            }
+            set
+            {
+                lock (_lock) inUpload = value;
+            }
+        }
     }
 
     /// <summary>

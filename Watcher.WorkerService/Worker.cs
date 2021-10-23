@@ -1,3 +1,4 @@
+using FluentFTP;
 using Microsoft.Extensions.Hosting;
 using System;
 using System.Collections.Concurrent;
@@ -6,9 +7,6 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net;
-using System.Runtime.InteropServices;
-using System.Runtime.Versioning;
-//using System.Speech.Synthesis;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -61,7 +59,8 @@ namespace Watcher.WorkerService
             //监视初始化
             CM.MonitoredIPs.ForEach(model => IPState[model.IP] = new CountAndState(-1, null, model.AlarmValue, model.RemoteName));
             CM.MonitoredProcesses.ForEach(model => ProcessState[model.Name] = new CountAndState(-1, null, model.AlarmValue));
-            CM.MonitoredPathes.ForEach(model => SetTask(model));
+            CM.MonitoredPathes.Where(model => !model.UpNow).ToList().ForEach(model => SetTask(model));
+            CM.MonitoredPathes.Where(model => model.UpNow).ToList().ForEach(model => FileWatcherInit(model));
             //每秒执行一次计数操作
             tDic["每秒执行"] = new Timer(TimeEvent, null, 1000, 1000);
         }
@@ -87,11 +86,14 @@ namespace Watcher.WorkerService
         /// <param name="state">UploadPathModel</param>
         private async void TimeEvent(object state)
         {
+#if TRACE
             LogHelper.Debug("running");
+#endif
             await WatchIPCheck();
             await MonitorProcessCheck();
 
-            await Send(new byte[] { 0x0f }, multiCastEnd, (ushort)WATCHER.HEARTBEAT);//发送心跳信息
+            //await Send(new byte[] { 0x0f }, multiCastEnd, (ushort)WATCHER.HEARTBEAT);//发送心跳信息
+            SendHeartBeat();
         }
 
         /// <summary>
@@ -113,10 +115,10 @@ namespace Watcher.WorkerService
                             IPState[keyIP].State = "OffLine";
                             IPState[keyIP].Count = -1;
                             LogHelper.Error($"{keyIP} {IPState[keyIP].Info}离线！");
-                            SendLog(new LogModel()
+                            SendLog(new LogModelForWatcher()
                             {
                                 Description = $"{IPState[keyIP].Info}离线！",
-                                Type = LogType.错误,
+                                Type = LogType.警告,
                                 ShowGrowl = true,
                                 IsSpeak = true
                             });
@@ -129,7 +131,7 @@ namespace Watcher.WorkerService
                         {
                             IPState[keyIP].State = "OnLine";
                             LogHelper.Info($"{keyIP} {IPState[keyIP].Info}上线！");
-                            SendLog(new LogModel()
+                            SendLog(new LogModelForWatcher()
                             {
                                 Description = $"{IPState[keyIP].Info}上线！",
                                 Type = LogType.信息,
@@ -163,7 +165,7 @@ namespace Watcher.WorkerService
                                 ProcessState[keyProcess].State = "Dead";
                                 ProcessState[keyProcess].Count = -1;
                                 LogHelper.Error($"\"{keyProcess}\"进程无响应！");
-                                SendLog(new LogModel()
+                                SendLog(new LogModelForWatcher()
                                 {
                                     Description = $"\"{keyProcess}\"进程无响应！",
                                     Type = LogType.错误,
@@ -179,7 +181,7 @@ namespace Watcher.WorkerService
                             {
                                 ProcessState[keyProcess].State = "Running";
                                 LogHelper.Info($"\"{keyProcess}\"运行正常！");
-                                SendLog(new LogModel()
+                                SendLog(new LogModelForWatcher()
                                 {
                                     Description = $"\"{keyProcess}\"运行正常！",
                                     Type = LogType.信息,
@@ -195,7 +197,7 @@ namespace Watcher.WorkerService
                             ProcessState[keyProcess].State = "Exception";
                             ProcessState[keyProcess].Count = -1;
                             LogHelper.Warn($"\"{keyProcess}\"进程不存在！");
-                            SendLog(new LogModel()
+                            SendLog(new LogModelForWatcher()
                             {
                                 Description = $"\"{keyProcess}\"进程不存在！",
                                 Type = LogType.警告,
@@ -203,6 +205,290 @@ namespace Watcher.WorkerService
                             });
                         }
                     }
+                });
+            });
+        }
+        #endregion
+
+        #region 立即上传任务区域
+        /// <summary>
+        /// 文件夹监视器初始化
+        /// </summary>
+        /// <param name="toWatchPath">监视文件夹的路径</param>
+        ConcurrentDictionary<FileSystemWatcher, UploadPathModel> UploadList = new();
+        ConcurrentDictionary<UploadPathModel, List<ChildrenPathModel>> FtpList = new();
+        ConcurrentDictionary<UploadPathModel, List<ChildrenPathModel>> ShareFoldsList = new();
+        public void FileWatcherInit(UploadPathModel model)
+        {
+            // 文件夹监视器
+            FileSystemWatcher fileWatcher;
+            if (!Directory.Exists(model.ParentPath))
+            {
+                SendLog(new LogModelForWatcher()
+                {
+                    Description = $"监视路径\"{model.ParentPath}\"不存在！",
+                    Type = LogType.警告,
+                    ShowGrowl = true
+                });
+                return;
+            }
+            fileWatcher = new FileSystemWatcher(model.ParentPath, "*.*");
+            fileWatcher.Created += new FileSystemEventHandler(OnCreated);
+            fileWatcher.EnableRaisingEvents = true;
+            fileWatcher.IncludeSubdirectories = true;
+            fileWatcher.NotifyFilter = NotifyFilters.Attributes
+                | NotifyFilters.CreationTime | NotifyFilters.DirectoryName
+                | NotifyFilters.FileName | NotifyFilters.LastWrite | NotifyFilters.Size;
+            UploadList[fileWatcher] = model;
+            //必须要有一个暂存列表，FtpList[model]，ShareFoldsList[model]没有初始化不能直接添加对象
+            var fl = new List<ChildrenPathModel>();
+            var sl = new List<ChildrenPathModel>();
+            model.UpPathList.ForEach(child =>
+            {
+                if (IsFtp(child.UploadPath))
+                    fl.Add(child);
+                else
+                    sl.Add(child);
+            });
+            FtpList[model] = fl;
+            ShareFoldsList[model] = sl;
+        }
+        /// <summary>
+        /// 监视的文件夹有新建文件事件时触发
+        /// </summary>
+        private ConcurrentQueue<OperTimeStamp> UpLoadedFiles = new();//缓存已经上传了的包含文件操作时间戳的文件对象
+        private ConcurrentQueue<string> filePaths = new();
+        private DelayAction da = new();
+        private int filesCount = 0;  //文件数量计数
+        /// <summary>
+        /// 生产者，消费者模式解决文件上传问题
+        /// </summary>
+        /// <param name="source"></param>
+        /// <param name="e"></param>
+        private void OnCreated(object source, FileSystemEventArgs e)
+        {
+            /*            if (UpLoadedFiles.Any(up => up.FileName == e.Name)) return;
+                            filePaths.Enqueue(e.FullPath);
+                        UpLoadedFiles.Enqueue(new OperTimeStamp(DateTime.Now, e.Name, e.FullPath));*/
+            da.Debounce(5000, null, () =>
+            {
+                SendLog(new LogModelForWatcher()
+                {
+                    Description = $"检测到新文件，数量{filesCount}",
+                    Type = LogType.成功,
+                    ShowGrowl = true,
+                    IsSpeak = CM.SpeechEnable
+                });
+                filesCount = 0;
+            });
+            var watcher = (FileSystemWatcher)source;
+            var model = UploadList[watcher];
+            UploadNowToShare(e.FullPath, model);
+            filesCount++;
+            //UploadNowToFtpV2(e.FullPath, model);  //上传到ftp太慢了，考虑使用MongoDB来代替
+        }
+        private void InUpload(UploadPathModel model)
+        {
+            if (filePaths.Count > 0)
+            {
+                model.InUpload = true;
+                filePaths.TryDequeue(out string path);
+                //await Task.Run(() => FileUpload(path, model));
+                UploadNowToFtpV1(path, model);
+                InUpload(model);
+            }
+            else
+            {
+                model.InUpload = false;
+                return;
+            }
+        }
+        /// <summary>
+        /// 立即上传至FTP
+        /// </summary>
+        private void UploadNowToFtpV1(string path, UploadPathModel model)
+        {
+            var newFile = new FileInfo(path);
+            var td = DateTime.Now;
+            if (model.FileFilter.Contains(newFile.Extension.ToLower()) && !newFile.Name.StartsWith("~$")//修改word和excel时会出现带~$符号的临时文件
+                && newFile.Extension != "")
+            {
+                try
+                {
+                    FtpList[model].ForEach(async ftp =>
+                    {
+                        //if (!ftp.IsConnected)
+                        //{
+                            //发起连接登录
+                            //await ftp.ConnectAsync();
+                            //启用UTF8传输
+                            //var result = ftp.Execute("OPTS UTF8 ON");
+                            //if (!result.Code.Equals("200") && !result.Code.Equals("202"))
+                            //ftp.Encoding = Encoding.GetEncoding("ISO-8859-1");
+
+
+                            /*                            var nowD = td.ToString("yyyy-MM-dd") + "/";
+                                                        if (!ftp.DirectoryExistsAsync(nowD).Result)
+                                                            await ftp.CreateDirectoryAsync(nowD);*/
+                        //}
+                        //await ftp.UploadFileAsync(newFile.FullName, $"ftp/{td.ToString("yyyy-MM-dd")}/{newFile.Name}", createRemoteDir: true);
+                        //await ftp.DisconnectAsync();
+                        //ftp.Dispose();
+                        /*                        var Watch = new Stopwatch();
+                                                Watch.Start();
+                                                while (newFile.Exists)
+                                                {
+                                                    if (IsFileInUse(path) == false)//IsFileInUse报错时返回null,被注释掉了
+                                                    {
+                                                        try
+                                                        {
+                                                            //上传文件
+                                                            ftp.UpLoadFile(newFile.FullName, newFile.Name);
+                                                        }
+                                                        catch
+                                                        {
+                                                            SendLog(new LogModelForWatcher()
+                                                            {
+                                                                Description = $"{newFile.Name}上传失败！",
+                                                                Type = LogType.警告,
+                                                                ShowGrowl = true,
+                                                                IsSpeak = true
+                                                            });
+                                                        }
+                                                        break;
+                                                    }
+
+                                                    Thread.Sleep(500);
+                                                    if (Watch.ElapsedMilliseconds / 1e3 > 60) //超时10分钟放弃，防止死循环并警告
+                                                    {
+                                                        SendLog(new LogModelForWatcher()
+                                                        {
+                                                            Description = $"{newFile.Name}上传失败！",
+                                                            Type = LogType.警告,
+                                                            ShowGrowl = true,
+                                                            IsSpeak = true
+                                                        });
+                                                        break;
+                                                    }
+                                                }
+                                                Watch.Stop();*/
+                    });
+
+                    //UpLoadedFiles.Enqueue(new OperTimeStamp(td, newFile.Name, newFile.FullName));
+                    if (UpLoadedFiles.Count > 1000)
+                    {
+                        if (UpLoadedFiles.TryDequeue(out OperTimeStamp deItem))
+                            SendLog(new LogModelForWatcher()
+                            {
+                                Description = "文件队列操作失败！",
+                                Type = LogType.警告,
+                                ShowGrowl = true
+                            });
+                    }
+
+                    filesCount++;
+                }
+                catch (Exception error)
+                {
+                    SendLog(new LogModelForWatcher()
+                    {
+                        Description = error.ToString(),
+                        Type = LogType.警告,
+                        ShowGrowl = true
+                    });
+                }
+            }
+        }
+        private void UploadNowToFtpV2(string path, UploadPathModel model)
+        {
+            FtpList[model].ForEach(async child =>
+            {
+                var ftp = new FtpClient(child.UploadPath, child.UserName, child.PassWord)
+                {
+                    EncryptionMode = FtpEncryptionMode.None,
+                    DataConnectionType = FtpDataConnectionType.PASV,
+                    Encoding = Encoding.UTF8
+                };
+                var newFile = new FileInfo(path);
+                var td = DateTime.Now;
+                if (model.FileFilter.Contains(newFile.Extension.ToLower()) && !newFile.Name.StartsWith("~$")//修改word和excel时会出现带~$符号的临时文件
+                    && newFile.Extension != "")
+                {
+                    if (!ftp.IsConnected)
+                    {
+                        //发起连接登录
+                        await ftp.ConnectAsync();
+                        //启用UTF8传输
+                        var result = ftp.Execute("OPTS UTF8 ON");
+                        if (!result.Code.Equals("200") && !result.Code.Equals("202"))
+                            ftp.Encoding = Encoding.GetEncoding("ISO-8859-1");
+                    }
+                    await ftp.UploadFileAsync(newFile.FullName, $"ftp/{td.ToString("yyyy-MM-dd")}/{newFile.Name}", createRemoteDir: true);
+                    await ftp.DisconnectAsync();
+                    ftp.Dispose();
+                }
+            });
+        }
+        /// <summary>
+        /// 立即上传至共享文件夹
+        /// </summary>
+        private void UploadNowToShare(string path, UploadPathModel model)
+        {
+            var newFile = new FileInfo(path);
+            var nowD = DateTime.Now.ToString("yyyy-MM-dd") + "/";
+            Task.Run(() =>
+            {
+                ShareFoldsList[model].ForEach(child =>
+                {
+                    if (!ConnectToSharedFolder(child.UploadPath, child.UserName, child.PassWord))
+                    {
+                        LogHelper.Error($"{child.UploadPath}:共享文件夹连接失败！");
+                        return;
+                    }
+                    var filePath = @$"{child.UploadPath}\{nowD}\";
+                    if (!Directory.Exists(filePath))
+                        Directory.CreateDirectory(filePath);
+
+                    newFile.CopyTo(@$"{filePath}{newFile.Name}");
+
+/*                    var Watch = new Stopwatch();
+                    Watch.Start();
+                    while (newFile.Exists)
+                    {
+                        if (IsFileInUse(path) == false)//IsFileInUse报错时返回null,被注释掉了
+                        {
+                            try
+                            {
+                                //上传文件
+                                newFile.CopyTo(@$"{filePath}{newFile.Name}");
+                            }
+                            catch
+                            {
+                                SendLog(new LogModelForWatcher()
+                                {
+                                    Description = $"{newFile.Name}上传失败！",
+                                    Type = LogType.警告,
+                                    ShowGrowl = true,
+                                    IsSpeak = true
+                                });
+                            }
+                            break;
+                        }
+
+                        Thread.Sleep(500);
+                        if (Watch.ElapsedMilliseconds / 1e3 > 60) //超时10分钟放弃，防止死循环并警告
+                        {
+                            SendLog(new LogModelForWatcher()
+                            {
+                                Description = $"{newFile.Name}上传失败！",
+                                Type = LogType.警告,
+                                ShowGrowl = true,
+                                IsSpeak = true
+                            });
+                            break;
+                        }
+                    }
+                    Watch.Stop();*/
                 });
             });
         }
@@ -247,7 +533,7 @@ namespace Watcher.WorkerService
             //日志发送
             if (ftpTask.Result.Count > 0) 
             {
-                SendLog(new LogModel()
+                SendLog(new LogModelForWatcher()
                 {
                     IsSpeak = true,
                     Type = LogType.成功,
@@ -257,7 +543,7 @@ namespace Watcher.WorkerService
             }
             if (shareTask.Result.Count > 0) 
             {
-                SendLog(new LogModel()
+                SendLog(new LogModelForWatcher()
                 {
                     IsSpeak = true,
                     Type = LogType.成功,
@@ -563,19 +849,32 @@ namespace Watcher.WorkerService
         #endregion
 
         /// <summary>
+        /// 发送心跳信息
+        /// </summary>
+        async void SendHeartBeat()
+        {
+            var log = new LogModelForWatcher();
+            log.Name = CM.HostName;
+            log.LogTime = DateTime.Now;
+            log.wType = WriteType.监视器;
+            log.Description = "HeartBeat";
+            string json = JsonHelper.SerializeObject(log);
+            await Send(Encoding.UTF8.GetBytes(json), multiCastEnd, (ushort)WATCHER.HEARTBEAT);
+        }
+
+        /// <summary>
         /// 发送日志
         /// </summary>
-        public async void SendLog(LogModel log)
+        public async void SendLog(LogModelForWatcher log)
         {
+            log.Name = CM.HostName;
             log.LogTime = DateTime.Now;
             log.wType = WriteType.监视器;
             //语音提示,仅windows
             if (!CM.SpeechEnable) log.IsSpeak = false;
             //if (log.IsSpeak && RuntimeInformation.IsOSPlatform(OSPlatform.Windows)) speech.SpeakAsync(log.Description);
-
             //组播日志
             LogHelper.Info($"发送日志：{log.Description}");
-            log.Description = $"{CM.HostName} {log.Description}";//添加主机信息
             string json = JsonHelper.SerializeObject(log);
             await Send(Encoding.UTF8.GetBytes(json), multiCastEnd, (ushort)WATCHER.WENUM_WATCHER_INFO);
         }

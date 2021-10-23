@@ -11,13 +11,27 @@ namespace Watcher.WorkerService.Helper
 {
     public class FtpHelper
     {
-        private readonly string _basePath;
-        private readonly string _userName;
-        private readonly string _passWord;
+        public string _basePath;
+        public string _originPath;
+        public readonly string _userName;
+        public readonly string _passWord;
         public FtpHelper(string ftpBasePath, string userName, string passWord)
         {
             _basePath = ftpBasePath; _userName = userName; _passWord = passWord;
             if (!_basePath.EndsWith("/")) _basePath += "/";
+            _originPath = _basePath;
+        }
+
+        /// <summary>
+        /// 切换当前目录
+        /// </summary>
+        /// <param name="DirectoryName"></param>
+        public void GotoDirectory(string DirectoryName = "", bool isRoot = false)
+        {
+            if (isRoot)
+                _basePath = _originPath;
+            else
+                _basePath += "/" + DirectoryName;
         }
 
         /// <summary>
