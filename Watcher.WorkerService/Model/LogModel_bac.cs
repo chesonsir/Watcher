@@ -6,21 +6,21 @@ using System.Threading.Tasks;
 
 namespace Watcher.WorkerService.Model
 {
-    public enum LogType
+    public enum LogType_bac
     {
         信息,
         成功,
         警告,
         错误,
     }
-    public enum WriteType
+    public enum WriteType_bac
     {
         手动,
         FTP,
         实时数据,
         监视器
     }
-    public class LogModel
+    public class LogModel_bac
     {
         /// <summary>
         /// 日志类型
@@ -76,10 +76,10 @@ namespace Watcher.WorkerService.Model
             get => showGrowl;
             set => showGrowl = value;
         }
-        public LogModel()
+        public LogModel_bac()
         {
         }
-        public LogModel(LogType lt, WriteType wt, string description, bool isSpeak, bool showGrowl)
+        public LogModel_bac(LogType lt, WriteType wt, string description, bool isSpeak, bool showGrowl)
         {
             Type = lt; wType = wt; Description = description; IsSpeak = isSpeak; ShowGrowl = showGrowl;
         }

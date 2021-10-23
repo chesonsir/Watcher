@@ -51,3 +51,5 @@ D:\chen\dotNet\Watcher\Watcher.WorkerService\obj\Debug\net5.0\Watcher.WorkerServ
 D:\chen\dotNet\Watcher\Watcher.WorkerService\obj\Debug\net5.0\ref\Watcher.WorkerService.dll
 D:\chen\dotNet\Watcher\Watcher.WorkerService\obj\Debug\net5.0\Watcher.WorkerService.pdb
 D:\chen\dotNet\Watcher\Watcher.WorkerService\obj\Debug\net5.0\Watcher.WorkerService.genruntimeconfig.cache
+D:\chen\dotNet\Watcher\Watcher.WorkerService\obj\Debug\net5.0\Watcher.WorkerService.csproj.AssemblyReference.cache
+D:\chen\dotNet\Watcher\Watcher.WorkerService\bin\Debug\net5.0\FluentFTP.dll
