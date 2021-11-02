@@ -4,7 +4,7 @@ autoupload localfiles to net sharefolder and ftp at a fixtime
 1.需安装.Net5.0运行环境
 2.配置文件为json格式，{}表示一个对象 []表示一个数组 两者可相互嵌套
 3.配置文件所有符号为英文符号
-4.注册服务命令，以管理员运行cmd，输入sc.exe create 服务名称 binPath= 程序路径，例如sc.exe create MyWatcher binPath= D:\软件\Watcher.WorkerService\Watcher.WorkerService\bin\Release\net5.0\publish\Watcher.WorkerService.exe
+4.注册服务命令，以管理员运行cmd，输入sc.exe create 服务名称 binPath= 程序路径，例如sc.exe create MyWatcher binPath= D:\chen\dotNet\Watcher\Watcher.WorkerService\bin\Release\net5.0\Watcher.WorkerService.exe
 5.删除服务指令sc.exe delete 服务名称
 6.win+R输入services.msc打开服务，找到你注册的服务，右键属性，打开登录选项卡，选择“此账户”，将服务运行设置为管理员账户，密码是你的登录密码
 7.配置解释
