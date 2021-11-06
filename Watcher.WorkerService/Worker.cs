@@ -435,7 +435,7 @@ namespace Watcher.WorkerService
         private void UploadNowToShare(string path, UploadPathModel model)
         {
             var newFile = new FileInfo(path);
-            var nowD = DateTime.Now.ToString("yyyy-MM-dd") + "/";
+            var nowD = $"{DateTime.Now:yyyy-MM-dd}_{CM.HostName}/";
             Task.Run(() =>
             {
                 ShareFoldsList[model].ForEach(child =>
