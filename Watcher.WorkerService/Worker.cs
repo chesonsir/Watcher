@@ -260,6 +260,8 @@ namespace Watcher.WorkerService
         private ConcurrentQueue<string> filePaths = new();
         private DelayAction da = new();
         private int filesCount = 0;  //文件数量计数
+        private static object _lock = new();  //计数时加上一个线程锁
+        private List<string> hasUpLoads = new();
         /// <summary>
         /// 生产者，消费者模式解决文件上传问题
         /// </summary>
@@ -270,21 +272,27 @@ namespace Watcher.WorkerService
             /*            if (UpLoadedFiles.Any(up => up.FileName == e.Name)) return;
                             filePaths.Enqueue(e.FullPath);
                         UpLoadedFiles.Enqueue(new OperTimeStamp(DateTime.Now, e.Name, e.FullPath));*/
+            if (hasUpLoads.Contains(e.FullPath)) return;
             da.Debounce(5000, null, () =>
             {
                 SendLog(new LogModelForWatcher()
                 {
-                    Description = $"检测到新文件，数量{filesCount}",
+                    Description = $"检测到新文件，有效文件数量{filesCount}",
                     Type = LogType.成功,
                     ShowGrowl = true,
                     IsSpeak = CM.SpeechEnable
                 });
                 filesCount = 0;
+                hasUpLoads.Clear();
             });
             var watcher = (FileSystemWatcher)source;
             var model = UploadList[watcher];
-            UploadNowToShare(e.FullPath, model);
-            filesCount++;
+            if (!UploadNowToShare(e.FullPath, model)) return;
+            lock (_lock)
+            {
+                hasUpLoads.Add(e.FullPath);
+                filesCount++;
+            }
             //UploadNowToFtpV2(e.FullPath, model);  //上传到ftp太慢了，考虑使用MongoDB来代替
         }
         private void InUpload(UploadPathModel model)
@@ -432,8 +440,9 @@ namespace Watcher.WorkerService
         /// <summary>
         /// 立即上传至共享文件夹
         /// </summary>
-        private void UploadNowToShare(string path, UploadPathModel model)
+        private bool UploadNowToShare(string path, UploadPathModel model)
         {
+            if (!model.FileFilter.Contains(Path.GetExtension(path))) return false;
             var newFile = new FileInfo(path);
             var nowD = $"{DateTime.Now:yyyy-MM-dd}_{CM.HostName}/";
             Task.Run(() =>
@@ -491,6 +500,7 @@ namespace Watcher.WorkerService
                     Watch.Stop();*/
                 });
             });
+            return true;
         }
         #endregion
 
