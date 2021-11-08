@@ -442,6 +442,7 @@ namespace Watcher.WorkerService
         /// </summary>
         private bool UploadNowToShare(string path, UploadPathModel model)
         {
+            if (Path.GetFileName(path).StartsWith('~')) return false;
             if (!model.FileFilter.Contains(Path.GetExtension(path))) return false;
             var newFile = new FileInfo(path);
             var nowD = $"{DateTime.Now:yyyy-MM-dd}_{CM.HostName}/";
